@@ -28,8 +28,8 @@
   body{ padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) 0; }
   .wrap{ max-width: 640px; margin: 0 auto; padding: 18px 20px 90px; }
 
-  .tabbar{ position: sticky; top: env(safe-area-inset-top,0px); z-index: 40; background: var(--bg); display:flex; align-items:center; gap:6px; padding: 10px 0 14px; border-bottom: 1px solid var(--line); }
-  .tabbar button{ padding: 9px 6px; border-radius:8px; border:1px solid transparent; background:none; color: var(--ink-soft); font-size:0.8rem; cursor:pointer; }
+  .tabbar{ position: sticky; top: env(safe-area-inset-top,0px); z-index: 40; background: var(--bg); display:flex; align-items:center; gap:6px; padding: 10px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .tabbar button{ padding: 9px 2px; border-radius:8px; border:1px solid transparent; background:none; color: var(--ink-soft); font-size:0.74rem; cursor:pointer; }
   .tabbar button[data-tab]{ flex:1; }
   .tabbar button.active{ background: var(--panel); border-color: var(--line); color: var(--ink); font-weight:600; }
   .theme-toggle{ flex: 0 0 auto; width:34px; height:34px; display:flex; align-items:center; justify-content:center; color: var(--ink-soft); }
@@ -184,6 +184,7 @@
     <button data-tab="library">Library</button>
     <button data-tab="exercise">Exercise</button>
     <button data-tab="history">History</button>
+    <button data-tab="calc">Calc</button>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode"></button>
   </div>
 
@@ -224,6 +225,7 @@
       <input type="number" id="weightInput" min="0" step="0.1" placeholder="—">
     </div>
 
+    <div id="bodyDay"></div>
     <div id="meals"></div>
     <div id="exerciseDay"></div>
   </div>
@@ -280,6 +282,26 @@
     <div id="exerciseLibrary"></div>
   </div>
 
+  <!-- CALCULATOR -->
+  <div class="screen" id="screen-calc">
+    <h2 class="screen-title">Body calculator</h2>
+    <div class="profile-card">
+      <div class="chart-title">Your details</div>
+      <div class="profile-note">Sex, age, height and activity are shared with the History projection inputs. Leave weight blank to use your latest logged weight.</div>
+      <div class="profile-grid">
+        <div><label>Sex</label><select id="cSex"></select></div>
+        <div><label>Age (years)</label><input type="number" id="cAge" min="10" max="100"></div>
+        <div><label>Height (cm)</label><input type="number" id="cHeight" min="100" max="250"></div>
+        <div><label>Activity level</label><select id="cActivity"></select></div>
+        <div><label>Weight (kg)</label><input type="number" id="cWeight" min="0" step="0.1"></div>
+        <div><label>Waist (cm)</label><input type="number" id="cWaist" min="0" step="0.1"></div>
+        <div><label>Neck (cm)</label><input type="number" id="cNeck" min="0" step="0.1"></div>
+        <div id="cHipWrap"><label>Hip (cm, needed for women)</label><input type="number" id="cHip" min="0" step="0.1"></div>
+      </div>
+    </div>
+    <div id="calcResults"></div>
+  </div>
+
   <!-- HISTORY -->
   <div class="screen" id="screen-history">
     <h2 class="screen-title">History & progress</h2>
@@ -310,6 +332,12 @@
     </div>
 
     <div class="profile-card">
+      <div class="chart-title">Default daily calorie goal</div>
+      <div class="profile-note">Used for new days and days with nothing logged yet. Days you've already logged keep their own goal.</div>
+      <div class="stepper"><button type="button" class="step-btn" data-target="defaultGoalInput" data-step="-100" data-min="0">−</button><input type="number" id="defaultGoalInput"><button type="button" class="step-btn" data-target="defaultGoalInput" data-step="100" data-min="0">+</button></div>
+    </div>
+
+    <div class="profile-card">
       <div class="chart-title">Projection inputs</div>
       <div class="profile-note">Used to estimate your maintenance calories and project your weight trend. Nothing here is sent anywhere — it's just used for the calculation below.</div>
       <div class="profile-grid">
@@ -337,6 +365,16 @@
         <span><i style="border-color:var(--accent)"></i>Actual</span>
         <span><i class="dashed" style="border-color:var(--gold)"></i>Projected</span>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Body fat (%)</div>
+      <div id="bodyFatChart" class="chart-scroll"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Waist &amp; neck (cm)</div>
+      <div id="measureChart" class="chart-scroll"></div>
+      <div class="legend"><span><i style="border-color:var(--accent)"></i>Waist</span><span><i class="dashed" style="border-color:var(--gold)"></i>Neck</span></div>
     </div>
 
     <div class="data-actions">
@@ -394,6 +432,9 @@
     <div id="portionFields">
       <label>Calories (per portion)</label>
       <input type="number" id="foodCalories" min="0" step="1">
+      <label>Kcal per gram (optional)</label>
+      <input type="number" id="foodKcalPerGram" min="0" step="0.01" placeholder="e.g. 1.65">
+      <div class="profile-note" style="margin-top:6px;">Lets you log this food by weight in grams. If "Calories (per portion)" is empty, one portion is treated as 100 g.</div>
     </div>
 
     <div id="ingredientFields" style="display:none;">
@@ -482,7 +523,7 @@
   function defaultState(){
     return {
       foods: {}, exercises: {}, categories: {}, days: {},
-      settings: { dailyGoal: 2000, profile: { sex:'male', age:30, height:170, activity:1.375, startWeight:'', startDate: todayKey() } }
+      settings: { dailyGoal: 2000, calc:{weight:'',waist:'',neck:'',hip:''}, profile: { sex:'male', age:30, height:170, activity:1.375, startWeight:'', startDate: todayKey() } }
     };
   }
   function normalizeState(raw){
@@ -495,6 +536,7 @@
     raw.settings = raw.settings || def.settings;
     raw.settings.dailyGoal = raw.settings.dailyGoal || 2000;
     raw.settings.profile = Object.assign({}, def.settings.profile, raw.settings.profile || {});
+    raw.settings.calc = Object.assign({weight:'',waist:'',neck:'',hip:''}, raw.settings.calc || {});
     Object.keys(raw.foods).forEach(id=>{
       const f = raw.foods[id];
       if(!f.mealTypes) f.mealTypes = [];
@@ -506,7 +548,7 @@
       if(!ex.createdAt) ex.createdAt = Date.now();
       if(!ex.category) ex.category = 'cardio';
     });
-    Object.keys(raw.days).forEach(k=>{ if(!raw.days[k].exercise) raw.days[k].exercise = []; });
+    Object.keys(raw.days).forEach(k=>{ if(!raw.days[k].exercise) raw.days[k].exercise = []; ['bodyFat','waist','neck','hip'].forEach(f=>{ if(raw.days[k][f] === undefined) raw.days[k][f] = null; }); });
     return raw;
   }
   function loadData(){
@@ -567,6 +609,7 @@
     if(!state.days[key]) state.days[key] = { goal: state.settings.dailyGoal, weight: null, meals: { breakfast:[], lunch:[], dinner:[], extra:[] }, exercise: [] };
     if(state.days[key].weight === undefined) state.days[key].weight = null;
     if(!state.days[key].exercise) state.days[key].exercise = [];
+    ['bodyFat','waist','neck','hip'].forEach(f=>{ if(state.days[key][f] === undefined) state.days[key][f] = null; });
     return state.days[key];
   }
   function foodCalories(food){
@@ -592,10 +635,11 @@
   });
 
   function render(){
-    if(activeTab === 'home'){ renderDayHeader(); renderGauge(); renderWeightInput(); renderMeals(); renderExerciseDay(); }
+    if(activeTab === 'home'){ renderDayHeader(); renderGauge(); renderWeightInput(); renderBodyDay(); renderMeals(); renderExerciseDay(); }
     if(activeTab === 'library'){ renderLibrary(); }
     if(activeTab === 'exercise'){ renderExerciseLibrary(); }
-    if(activeTab === 'history'){ renderStats(); renderStreaks(); renderCalorieChart(); renderExerciseChart(); renderProfileForm(); renderWeightChart(); }
+    if(activeTab === 'history'){ renderStats(); renderStreaks(); renderCalorieChart(); renderExerciseChart(); renderProfileForm(); renderWeightChart(); renderDefaultGoal(); renderBodyCharts(); }
+    if(activeTab === 'calc'){ renderCalc(); }
   }
 
   // ---------- HOME: gauge / weight / navigation ----------
@@ -609,6 +653,7 @@
     const eaten = dayTotal(day);
     const burnt = dayExerciseTotal(day);
     const net = eaten - burnt;
+    if(dayTotal(day) === 0 && !dayExerciseTotal(day) && day.weight == null && !day.goalCustom) day.goal = state.settings.dailyGoal;
     const goal = day.goal || 0;
     document.getElementById('eatenNum').innerHTML = net + ' <small>/ ' + goal + ' kcal net</small>';
     document.getElementById('goalInput').value = goal;
@@ -635,7 +680,7 @@
   });
   document.getElementById('goalInput').addEventListener('change', (e)=>{
     const val = Math.max(0, Number(e.target.value)||0);
-    ensureDay(currentDayKey).goal = val; state.settings.dailyGoal = val;
+    const gd = ensureDay(currentDayKey); gd.goal = val; gd.goalCustom = true;
     saveData(); renderGauge();
   });
   document.getElementById('weightInput').addEventListener('change', (e)=>{
@@ -662,7 +707,7 @@
         '<div class="meal-body">' +
           (entries.length ? entries.map((e,idx)=>{
             const metaBits = [];
-            if(e.type === 'portion' && e.servings !== 1) metaBits.push('×'+e.servings);
+            if(e.mode === 'grams') metaBits.push(e.grams+' g'); else if(e.type === 'portion' && e.servings !== 1) metaBits.push('×'+e.servings);
             if(e.type === 'ingredients') metaBits.push(e.ingredientQtys.map(iq=> iq.qty+'× '+iq.name).join(', '));
             return '<div class="item-row">' +
               '<div class="item-text"><span class="item-name">'+escapeHtml(e.name)+'</span>' +
@@ -825,7 +870,7 @@
       const catTags = (f.categoryIds||[]).filter(cid=> state.categories[cid]).map(cid=> '<span class="tag-pill cat-pill">'+escapeHtml(state.categories[cid].name)+'</span>').join('');
       row.innerHTML =
         '<div><div>'+escapeHtml(f.name)+'</div>' +
-        '<div class="meta">'+foodCalories(f)+' kcal'+(f.type==='ingredients' ? ' · '+(f.ingredients||[]).length+' ingredients' : '')+'</div>' +
+        '<div class="meta">'+foodCalories(f)+' kcal'+(f.gramsOnly?' per 100 g':'')+(f.kcalPerGram?' · '+f.kcalPerGram+' kcal/g':'')+(f.type==='ingredients' ? ' · '+(f.ingredients||[]).length+' ingredients' : '')+'</div>' +
         ((mealTags||catTags) ? '<div>'+mealTags+catTags+'</div>' : '') + '</div>' +
         '<div class="library-actions">' +
           '<button class="icon-btn edit-icon" data-edit-food="'+id+'" title="Edit">✎</button>' +
@@ -1059,7 +1104,7 @@
       const f = state.foods[id];
       const row = document.createElement('div');
       row.className = 'picker-item';
-      row.innerHTML = '<span class="pname">'+escapeHtml(f.name)+'</span><span class="pkcal">'+foodCalories(f)+' kcal</span>';
+      row.innerHTML = '<span class="pname">'+escapeHtml(f.name)+'</span><span class="pkcal">'+foodCalories(f)+(f.gramsOnly?' kcal/100 g':' kcal')+'</span>';
       row.addEventListener('click', ()=>{ pickerOverlay.classList.remove('show'); openQtyModal('add', pickerMealId, { food: f, foodId: id }); });
       list.appendChild(row);
     });
@@ -1088,22 +1133,32 @@
       ingredientDefs = e.type === 'ingredients' ? e.ingredientQtys.map(iq=> ({name:iq.name, calories:iq.unitCalories})) : [];
     }
     qtyContext.type = type; qtyContext.name = name;
+    const src = mode === 'add' ? payload.food : payload.entry; qtyContext.kpg = Number(src.kcalPerGram)||0; qtyContext.gramsOnly = !!src.gramsOnly;
     document.getElementById('qtyTitle').textContent = (mode === 'add' ? 'Add ' : 'Edit ') + name;
     document.getElementById('qtySaveBtn').textContent = mode === 'add' ? 'Add to meal' : 'Save changes';
 
     if(type === 'portion'){
       qtyContext.portionCalories = portionCalories;
+      const kpg = qtyContext.kpg;
+      qtyContext.unit = (kpg && (qtyContext.gramsOnly || (mode === 'edit' && payload.entry.mode === 'grams'))) ? 'grams' : 'portions';
       const startServings = mode === 'edit' ? payload.entry.servings : 1;
-      body.innerHTML =
-        '<div class="qty-row"><span class="qname">Portions <span class="qmeta">('+portionCalories+' kcal each)</span></span>' +
-        stepperHTML('qtyPortionInput', startServings, 1, 0.25) + '</div>' +
-        '<div class="computed-total" id="qtyComputedTotal"></div>';
-      const updateTotal = ()=>{
-        const s = Math.max(0.25, Number(document.getElementById('qtyPortionInput').value)||1);
-        document.getElementById('qtyComputedTotal').textContent = 'Total: ' + Math.round(portionCalories*s) + ' kcal';
+      const startGrams = (mode === 'edit' && payload.entry.grams) ? payload.entry.grams : 100;
+      const draw = ()=>{
+        const g = qtyContext.unit === 'grams';
+        body.innerHTML = (kpg && !qtyContext.gramsOnly ? '<div class="type-toggle"><button type="button" id="uPortions"'+(g?'':' class="active"')+'>Portions</button><button type="button" id="uGrams"'+(g?' class="active"':'')+'>Grams</button></div>' : '') +
+          '<div class="qty-row"><span class="qname">'+(g?'Weight (g)':'Portions')+' <span class="qmeta">('+(g ? kpg+' kcal/g' : portionCalories+' kcal each')+')</span></span>' +
+          (g ? stepperHTML('qtyPortionInput', startGrams, 10, 0) : stepperHTML('qtyPortionInput', startServings, 1, 0.25)) + '</div>' +
+          '<div class="computed-total" id="qtyComputedTotal"></div>';
+        const upd = ()=>{
+          const v = Number(document.getElementById('qtyPortionInput').value)||0;
+          document.getElementById('qtyComputedTotal').textContent = 'Total: ' + Math.round(g ? v*kpg : portionCalories*Math.max(0.25, v||1)) + ' kcal';
+        };
+        document.getElementById('qtyPortionInput').addEventListener('input', upd); upd();
+        const bp = document.getElementById('uPortions'), bg = document.getElementById('uGrams');
+        if(bp) bp.addEventListener('click', ()=>{ qtyContext.unit = 'portions'; draw(); });
+        if(bg) bg.addEventListener('click', ()=>{ qtyContext.unit = 'grams'; draw(); });
       };
-      document.getElementById('qtyPortionInput').addEventListener('input', updateTotal);
-      updateTotal();
+      draw();
     } else {
       qtyContext.ingredientDefs = ingredientDefs;
       const startQtys = mode === 'edit' ? payload.entry.ingredientQtys.map(iq=>iq.qty) : ingredientDefs.map(()=>1);
@@ -1125,8 +1180,11 @@
   document.getElementById('qtySaveBtn').addEventListener('click', ()=>{
     let entry;
     if(qtyContext.type === 'portion'){
-      const servings = Math.max(0.25, Number(document.getElementById('qtyPortionInput').value)||1);
-      entry = { foodId: qtyContext.foodId, name: qtyContext.name, type:'portion', unitCalories: qtyContext.portionCalories, servings, calories: Math.round(qtyContext.portionCalories*servings) };
+      const v = Number(document.getElementById('qtyPortionInput').value)||0;
+      const base = { foodId: qtyContext.foodId, name: qtyContext.name, type:'portion', unitCalories: qtyContext.portionCalories };
+      if(qtyContext.kpg){ base.kcalPerGram = qtyContext.kpg; if(qtyContext.gramsOnly) base.gramsOnly = true; }
+      if(qtyContext.unit === 'grams') entry = Object.assign(base, { mode:'grams', grams: v, servings: 1, calories: Math.round(v*qtyContext.kpg) });
+      else { const servings = Math.max(0.25, v||1); entry = Object.assign(base, { servings, calories: Math.round(qtyContext.portionCalories*servings) }); }
     } else {
       const qtys = []; let total = 0;
       qtyContext.ingredientDefs.forEach((def,i)=>{
@@ -1179,7 +1237,8 @@
     setEditorType(editorType);
     updateTagButtons();
     renderCategoryTogglePills();
-    document.getElementById('foodCalories').value = (f && f.type !== 'ingredients') ? f.calories : '';
+    document.getElementById('foodCalories').value = (f && f.type !== 'ingredients' && !f.gramsOnly) ? f.calories : '';
+    document.getElementById('foodKcalPerGram').value = (f && f.kcalPerGram) || '';
     document.getElementById('ingredientRows').innerHTML = '';
     if(f && f.type === 'ingredients'){ f.ingredients.forEach(addIngredientRow); } else { addIngredientRow(); }
     updateComputedTotal();
@@ -1238,9 +1297,11 @@
       if(total <= 0){ alert('This food adds up to 0 kcal total — give at least one ingredient a calorie value above zero.'); return; }
       food = { name, type:'ingredients', ingredients, mealTypes: editorTags.slice(), categoryIds: editorCategoryIds.slice() };
     } else {
-      const cal = Number(document.getElementById('foodCalories').value);
-      if(!cal || cal <= 0){ alert('Enter a calorie value for this portion.'); return; }
-      food = { name, type:'portion', calories: cal, mealTypes: editorTags.slice(), categoryIds: editorCategoryIds.slice() };
+      const cal = Number(document.getElementById('foodCalories').value)||0;
+      const kpg = Number(document.getElementById('foodKcalPerGram').value)||0;
+      if(cal <= 0 && kpg <= 0){ alert('Enter calories per portion, or kcal per gram.'); return; }
+      food = { name, type:'portion', calories: cal > 0 ? cal : Math.round(kpg*100), mealTypes: editorTags.slice(), categoryIds: editorCategoryIds.slice() };
+      if(kpg > 0){ food.kcalPerGram = kpg; if(cal <= 0) food.gramsOnly = true; }
     }
     const existing = editingFoodId ? state.foods[editingFoodId] : null;
     food.createdAt = existing ? existing.createdAt : Date.now();
@@ -1389,6 +1450,106 @@
     reader.readAsText(file);
     importInput.value = '';
   });
+
+  // ---------- 34: default goal ----------
+  function renderDefaultGoal(){ document.getElementById('defaultGoalInput').value = state.settings.dailyGoal; }
+  document.getElementById('defaultGoalInput').addEventListener('change', (e)=>{ state.settings.dailyGoal = Math.max(0, Number(e.target.value)||0); saveData(); });
+
+  // ---------- body fat helpers (US Navy method) ----------
+  function navyBF(sex, h, w, n, hip){
+    h = +h; w = +w; n = +n; hip = +hip;
+    if(!h || !w || !n) return null;
+    let bf;
+    if(sex === 'female'){ if(!hip || w+hip-n <= 0) return null; bf = 495/(1.29579 - 0.35004*Math.log10(w+hip-n) + 0.221*Math.log10(h)) - 450; }
+    else { if(w-n <= 0) return null; bf = 495/(1.0324 - 0.19077*Math.log10(w-n) + 0.15456*Math.log10(h)) - 450; }
+    return (isFinite(bf) && bf > 0 && bf < 70) ? round1(bf) : null;
+  }
+  function dayBF(k){
+    const d = state.days[k], p = state.settings.profile;
+    if(d.bodyFat != null) return d.bodyFat;
+    return navyBF(p.sex, p.height, d.waist, d.neck, d.hip);
+  }
+
+  // ---------- 39: home body measurements ----------
+  let bodyOpen = false;
+  function renderBodyDay(){
+    const day = ensureDay(currentDayKey), p = state.settings.profile;
+    const est = navyBF(p.sex, p.height, day.waist, day.neck, day.hip);
+    const f = (k,l)=> '<div><label>'+l+'</label><input type="number" min="0" step="0.1" data-bf="'+k+'" value="'+(day[k] != null ? day[k] : '')+'"></div>';
+    const c = document.getElementById('bodyDay');
+    c.innerHTML = '<div class="meal'+(bodyOpen?' open':'')+'"><div class="meal-head" id="bodyHead"><div class="meal-title"><span class="name">Body measurements</span><span class="kcal">'+(day.bodyFat != null ? day.bodyFat+'% body fat' : '')+'</span></div><span class="chevron">▶</span></div>' +
+      '<div class="meal-body"><div class="profile-grid">'+f('bodyFat','Body fat (%)')+f('waist','Waist (cm)')+f('neck','Neck (cm)')+(p.sex==='female' ? f('hip','Hip (cm)') : '')+'</div>' +
+      (est !== null ? '<div class="computed-total">Estimated from measurements: '+est+'% <button type="button" class="link-btn" id="useBF">Use</button></div>' : '') + '</div></div>';
+    document.getElementById('bodyHead').addEventListener('click', ()=>{ bodyOpen = !bodyOpen; renderBodyDay(); });
+    c.querySelectorAll('[data-bf]').forEach(inp=> inp.addEventListener('change', ()=>{
+      day[inp.getAttribute('data-bf')] = inp.value === '' ? null : Math.max(0, Number(inp.value)||0);
+      saveData(); renderBodyDay();
+    }));
+    const u = document.getElementById('useBF');
+    if(u) u.addEventListener('click', ()=>{ day.bodyFat = est; saveData(); renderBodyDay(); });
+  }
+  function renderBodyCharts(){
+    const keys = Object.keys(state.days).sort();
+    const bfK = keys.filter(k=> dayBF(k) !== null);
+    const c1 = document.getElementById('bodyFatChart');
+    if(!bfK.length) c1.innerHTML = '<div class="empty-note">Log body fat (or waist and neck) on the home screen to see this chart.</div>';
+    else renderChartInto('bodyFatChart', [{points: bfK.map(dayBF), color:'#B4523A'}], bfK.map(shortLabel), false);
+    const mK = keys.filter(k=> state.days[k].waist != null || state.days[k].neck != null);
+    const c2 = document.getElementById('measureChart');
+    if(!mK.length) c2.innerHTML = '<div class="empty-note">Log waist and neck on the home screen to see this chart.</div>';
+    else renderChartInto('measureChart', [{points: mK.map(k=> state.days[k].waist), color:'#1F6F5C'}, {points: mK.map(k=> state.days[k].neck), color:'#B08A2E', dash:'5,4'}], mK.map(shortLabel), false);
+  }
+
+  // ---------- 36-38: calculator ----------
+  document.getElementById('cSex').innerHTML = document.getElementById('profSex').innerHTML;
+  document.getElementById('cActivity').innerHTML = document.getElementById('profActivity').innerHTML;
+  const CALC_MAP = { cSex:['p','sex'], cAge:['p','age'], cHeight:['p','height'], cActivity:['p','activity'], cWeight:['c','weight'], cWaist:['c','waist'], cNeck:['c','neck'], cHip:['c','hip'] };
+  Object.keys(CALC_MAP).forEach(id=> document.getElementById(id).addEventListener('change', (e)=>{
+    const [w,k] = CALC_MAP[id], o = w === 'p' ? state.settings.profile : state.settings.calc;
+    let v = e.target.value; if(k !== 'sex') v = v === '' ? '' : (Number(v)||0);
+    o[k] = v; saveData(); renderCalc();
+  }));
+  function calcWeight(){
+    const c = Number(state.settings.calc.weight); if(c > 0) return c;
+    const ks = Object.keys(state.days).filter(k=> state.days[k].weight).sort();
+    if(ks.length) return state.days[ks[ks.length-1]].weight;
+    return Number(state.settings.profile.startWeight) || 0;
+  }
+  function renderCalc(){
+    const p = state.settings.profile, c = state.settings.calc;
+    const setV = (id,v)=>{ const el = document.getElementById(id); if(document.activeElement !== el) el.value = v; };
+    setV('cSex', p.sex); setV('cAge', p.age); setV('cHeight', p.height); setV('cActivity', p.activity);
+    setV('cWeight', c.weight); setV('cWaist', c.waist); setV('cNeck', c.neck); setV('cHip', c.hip);
+    document.getElementById('cWeight').placeholder = calcWeight() || '—';
+    document.getElementById('cHipWrap').style.display = p.sex === 'female' ? 'block' : 'none';
+    const R = document.getElementById('calcResults');
+    const w = calcWeight(), h = Number(p.height), a = Number(p.age), act = Number(p.activity);
+    if(!w || !h || !a){ R.innerHTML = '<div class="empty-note">Enter weight, height and age to see your results.</div>'; return; }
+    const bf = navyBF(p.sex, h, c.waist, c.neck, c.hip);
+    const bmi = round1(w/((h/100)*(h/100)));
+    const mif = bmr(w, h, a, p.sex);
+    const hb = p.sex === 'female' ? 9.247*w + 3.098*h - 4.33*a + 447.593 : 13.397*w + 4.799*h - 5.677*a + 88.362;
+    const kat = bf !== null ? 370 + 21.6*(w*(1-bf/100)) : null;
+    const tdee = mif*act;
+    const card = (n,l)=> '<div class="stat-card"><div class="num">'+n+'</div><div class="lbl">'+l+'</div></div>';
+    let html = '<div class="stat-grid">' + card(bmi,'BMI') + card(bf !== null ? bf+'%' : '—','body fat (US Navy)') +
+      card(bf !== null ? round1(w*(1-bf/100))+' kg' : '—','lean mass') + card(bf !== null ? round1(w*bf/100)+' kg' : '—','fat mass') + '</div>';
+    if(bf === null) html += '<div class="profile-note">Add waist and neck (and hip for women) to estimate body fat and unlock Katch-McArdle.</div>';
+    html += '<div class="profile-card"><div class="chart-title">Resting energy (BMR)</div>' +
+      '<div class="meta">Mifflin-St Jeor: <b>'+Math.round(mif)+'</b> kcal · Revised Harris-Benedict: <b>'+Math.round(hb)+'</b> kcal' + (kat !== null ? ' · Katch-McArdle: <b>'+Math.round(kat)+'</b> kcal' : '') + '</div>' +
+      '<div class="meta" style="margin-top:6px;">Maintenance (Mifflin × activity): <b>'+Math.round(tdee)+'</b> kcal/day</div></div>';
+    html += '<div class="profile-card"><div class="chart-title">Suggested calorie targets</div><div class="profile-note">Based on maintenance minus the deficit for the weekly loss (7,700 kcal per kg).</div>';
+    [['Maintain weight',0],['Mild weight loss · 0.25 kg/week',0.25],['Weight loss · 0.5 kg/week',0.5],['Extreme weight loss · 1 kg/week',1]].forEach(t=>{
+      const kcal = Math.round(tdee - t[1]*KCAL_PER_KG/7);
+      html += '<div class="library-row"><div><div>'+t[0]+'</div><div class="meta"><b>'+kcal+' kcal/day</b>'+(kcal < mif ? ' · ⚠ below your BMR' : '')+'</div></div>' +
+        '<div class="library-actions"><button class="link-btn" data-set-goal="'+kcal+'">Set as default goal</button></div></div>';
+    });
+    R.innerHTML = html + '</div>';
+    R.querySelectorAll('[data-set-goal]').forEach(b=> b.addEventListener('click', ()=>{
+      state.settings.dailyGoal = Number(b.getAttribute('data-set-goal')); saveData();
+      alert('Default daily goal set to ' + state.settings.dailyGoal + ' kcal. Days you already logged keep their own goal.');
+    }));
+  }
 
   render();
 })();
