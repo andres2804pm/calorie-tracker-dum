@@ -28,7 +28,7 @@
   body{ padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) 0; }
   .wrap{ max-width: 640px; margin: 0 auto; padding: 18px 20px 90px; }
 
-  .tabbar{ position: sticky; top: env(safe-area-inset-top,0px); z-index: 40; background: var(--bg); display:flex; align-items:center; gap:6px; padding: 10px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .tabbar{ position: sticky; top: env(safe-area-inset-top,0px); z-index: 40; background: var(--bg); display:flex; align-items:center; gap:6px; padding: 10px 0 14px; border-bottom: 1px solid var(--line); }
   .tabbar button{ padding: 9px 6px; border-radius:8px; border:1px solid transparent; background:none; color: var(--ink-soft); font-size:0.8rem; cursor:pointer; }
   .tabbar button[data-tab]{ flex:1; }
   .tabbar button.active{ background: var(--panel); border-color: var(--line); color: var(--ink); font-weight:600; }
@@ -171,8 +171,8 @@
   .stepper{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
   .stepper button{ width:34px; height:34px; border-radius:8px; border:1px solid var(--line); background: var(--bg); color: var(--ink); font-size:1.15rem; line-height:1; cursor:pointer; flex-shrink:0; }
   .stepper button:hover{ background: var(--accent-soft); }
-  .stepper input{ width:56px; text-align:center; padding:8px 4px; -moz-appearance:textfield; }
-  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .stepper input{ width:56px; text-align:center; padding:8px 4px; appearance: textfield; -moz-appearance: textfield; }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
 
   #importFileInput{ display:none; }
 </style>
